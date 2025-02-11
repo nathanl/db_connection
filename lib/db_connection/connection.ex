@@ -67,7 +67,8 @@ defmodule DBConnection.Connection do
   @impl :gen_statem
   def handle_event(type, info, state, s)
 
-  def handle_event(:internal, {:connect, _info}, :no_state, s) do
+  def handle_event(:internal, {:connect, reason}, :no_state, s) do
+    IO.inspect ["connecting for reason", reason]
     case Keyword.get(s.opts, :max_connection_lifetime) do
       ms when is_integer(ms) ->
         :erlang.start_timer(ms, self(), :max_lifetime_reached)
