@@ -68,6 +68,12 @@ defmodule DBConnection.Connection do
   def handle_event(type, info, state, s)
 
   def handle_event(:internal, {:connect, _info}, :no_state, s) do
+    case Keyword.get(s.opts, :max_connection_lifetime) do
+      ms when is_integer(ms) ->
+        :erlang.start_timer(ms, self(), :max_lifetime_reached)
+      _ -> :ok
+    end
+
     %{mod: mod, opts: opts, backoff: backoff, after_connect: after_connect} = s
 
     try do
@@ -177,6 +183,10 @@ defmodule DBConnection.Connection do
       {:disconnect, err, state} ->
         {:keep_state, %{s | state: state}, {:next_event, :internal, {:disconnect, {:log, err}}}}
     end
+  end
+
+  def handle_event(:cast, {:ping, _, _}, _, _) do
+    :keep_state_and_data
   end
 
   def handle_event(:cast, {:disconnect, ref, err, state}, :no_state, %{client: {ref, _}} = s) do
@@ -328,6 +338,10 @@ defmodule DBConnection.Connection do
   # We discard EXIT messages which may arrive if the process is trapping exits
   def handle_event(:info, {:EXIT, _, _}, :no_state, s) do
     handle_timeout(s)
+  end
+
+  def handle_event(:info, {:timeout, _ref, :max_lifetime_reached}, :no_state, state) do
+    {:keep_state, state, {:next_event, :internal, {:disconnect, {:no_log, nil}}}}
   end
 
   def handle_event(:info, msg, :no_state, %{mod: mod} = s) do

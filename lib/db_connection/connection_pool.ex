@@ -26,6 +26,7 @@ defmodule DBConnection.ConnectionPool do
   @doc false
   @impl DBConnection.Pool
   def checkout(pool, callers, opts) do
+    # IO.inspect ["checkout", pool]
     Holder.checkout(pool, callers, opts)
   end
 
@@ -46,6 +47,9 @@ defmodule DBConnection.ConnectionPool do
   @impl GenServer
   def init({mod, opts}) do
     DBConnection.register_as_pool(mod)
+    max_connection_lifetime = Keyword.get(opts, :max_connection_lifetime)
+    # IO.inspect ["ZZZ pool", self()]
+    # IO.inspect ["ZZZ max_connection_lifetime", max_connection_lifetime]
 
     queue = :ets.new(__MODULE__.Queue, [:protected, :ordered_set, decentralized_counters: true])
     ts = {System.monotonic_time(), 0}
@@ -137,13 +141,14 @@ defmodule DBConnection.ConnectionPool do
     {:noreply, data}
   end
 
-  def handle_info({:"ETS-TRANSFER", holder, _, {msg, queue, extra}}, {_, queue, _, ts} = data) do
+  def handle_info({:"ETS-TRANSFER", holder, client_pid, {msg, queue, extra}}, {_, queue, _, ts} = data) do
     case msg do
       :checkin ->
         owner = self()
 
         case :ets.info(holder, :owner) do
           ^owner ->
+            # IO.inspect ["checkin", holder, "client", client_pid]
             {time, interval} = ts
 
             if Holder.maybe_disconnect(holder, time, interval) do
