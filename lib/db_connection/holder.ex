@@ -137,23 +137,41 @@ defmodule DBConnection.Holder do
       :ets.lookup(holder, :conn)
     rescue
       ArgumentError ->
-        msg = "connection is closed because of an error, disconnect or timeout"
+        msg =
+          maybe_prefix_label(
+            "connection is closed because of an error, disconnect or timeout",
+            opts
+          )
+
         {:disconnect, DBConnection.ConnectionError.exception(msg), _state = :unused}
     else
       [conn(lock: conn_lock)] when conn_lock != lock ->
-        raise "an outdated connection has been given to DBConnection on #{fun}/#{length(args) + 2}"
+        raise maybe_prefix_label(
+                "an outdated connection has been given to DBConnection on #{fun}/#{length(args) + 2}",
+                opts,
+                ":"
+              )
 
       [conn(status: :error)] ->
-        msg = "connection is closed because of an error, disconnect or timeout"
+        msg =
+          maybe_prefix_label(
+            "connection is closed because of an error, disconnect or timeout",
+            opts
+          )
+
         {:disconnect, DBConnection.ConnectionError.exception(msg), _state = :unused}
 
       [conn(status: :aborted)] when type != :cleanup ->
-        msg = "transaction rolling back"
+        msg = maybe_prefix_label("transaction rolling back", opts)
         {:disconnect, DBConnection.ConnectionError.exception(msg), _state = :unused}
 
       [conn(module: module, state: state)] ->
         holder_apply(holder, module, fun, args ++ [opts, state])
     end
+  end
+
+  defp maybe_prefix_label(msg, opts, separator \\ "") do
+    if opts[:label], do: "#{inspect(opts[:label])} " <> separator <> msg, else: msg
   end
 
   ## Pool state helpers API (invoked by callers)

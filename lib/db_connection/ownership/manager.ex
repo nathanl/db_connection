@@ -107,7 +107,8 @@ defmodule DBConnection.Ownership.Manager do
        mode: mode,
        mode_ref: nil,
        ets: ets,
-       log: log
+       log: log,
+       label: pool_opts[:label]
      }}
   end
 
@@ -223,7 +224,7 @@ defmodule DBConnection.Ownership.Manager do
         {:noreply, state}
 
       :not_found when mode == :manual ->
-        not_found(from, mode)
+        not_found(from, mode, state.label)
         {:noreply, state}
 
       :not_found ->
@@ -405,10 +406,12 @@ defmodule DBConnection.Ownership.Manager do
     caller
   end
 
-  defp not_found({pid, _} = from, mode) do
+  defp not_found({pid, _} = from, mode, label) do
     msg = """
     cannot find ownership process for #{Util.inspect_pid(pid)}
-    using mode #{inspect(mode)}.
+    #{if label, do: "(#{inspect(label)})"} using mode #{inspect(mode)}.
+    (Note that a connection's mode reverts to :manual if its owner
+    terminates.)
 
     When using ownership, you must manage connections in one
     of the four ways:
