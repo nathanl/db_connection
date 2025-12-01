@@ -57,7 +57,7 @@ defmodule DBConnection.Holder do
     now = System.monotonic_time(@time_unit)
     timeout = abs_timeout(now, opts)
 
-    case checkout(pool, callers, queue?, now, timeout, opts) do
+    case checkout(pool, callers, queue?, now, timeout) do
       {:ok, _, _, _, _} = ok ->
         ok
 
@@ -288,10 +288,10 @@ defmodule DBConnection.Holder do
 
   ## Private
 
-  defp checkout(pool, callers, queue?, start, timeout, opts) do
+  defp checkout(pool, callers, queue?, start, timeout) do
     case GenServer.whereis(pool) do
       pid when node(pid) == node() ->
-        checkout_call(pid, callers, queue?, start, timeout, opts)
+        checkout_call(pid, callers, queue?, start, timeout)
 
       pid when node(pid) != node() ->
         {:exit, {:badnode, node(pid)}}
@@ -304,7 +304,7 @@ defmodule DBConnection.Holder do
     end
   end
 
-  defp checkout_call(pid, callers, queue?, start, timeout, opts) do
+  defp checkout_call(pid, callers, queue?, start, timeout) do
     lock = Process.monitor(pid)
     send(pid, {:db_connection, {self(), lock}, {:checkout, callers, start, queue?}})
 
