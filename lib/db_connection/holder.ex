@@ -132,7 +132,6 @@ defmodule DBConnection.Holder do
 
   defp handle_or_cleanup(type, pool_ref, fun, args, opts) do
     pool_ref(holder: holder, lock: lock, label: label) = pool_ref
-    opts = if label, do: Keyword.put_new(opts, :label, label), else: opts
 
     try do
       :ets.lookup(holder, :conn)
@@ -141,7 +140,7 @@ defmodule DBConnection.Holder do
         msg =
           maybe_prefix_label(
             "connection is closed because of an error, disconnect or timeout",
-            opts
+            label
           )
 
         {:disconnect, DBConnection.ConnectionError.exception(msg), _state = :unused}
@@ -149,7 +148,7 @@ defmodule DBConnection.Holder do
       [conn(lock: conn_lock)] when conn_lock != lock ->
         raise maybe_prefix_label(
                 "an outdated connection has been given to DBConnection on #{fun}/#{length(args) + 2}",
-                opts,
+                label,
                 ":"
               )
 
@@ -157,13 +156,13 @@ defmodule DBConnection.Holder do
         msg =
           maybe_prefix_label(
             "connection is closed because of an error, disconnect or timeout",
-            opts
+            label
           )
 
         {:disconnect, DBConnection.ConnectionError.exception(msg), _state = :unused}
 
       [conn(status: :aborted)] when type != :cleanup ->
-        msg = maybe_prefix_label("transaction rolling back", opts)
+        msg = maybe_prefix_label("transaction rolling back", label)
         {:disconnect, DBConnection.ConnectionError.exception(msg), _state = :unused}
 
       [conn(module: module, state: state)] ->
@@ -171,8 +170,8 @@ defmodule DBConnection.Holder do
     end
   end
 
-  defp maybe_prefix_label(msg, opts, separator \\ "") do
-    if opts[:label], do: "#{inspect(opts[:label])} " <> separator <> msg, else: msg
+  defp maybe_prefix_label(msg, label, separator \\ "") do
+    if label, do: "#{inspect(label)} " <> separator <> msg, else: msg
   end
 
   ## Pool state helpers API (invoked by callers)
