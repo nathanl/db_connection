@@ -9,7 +9,7 @@ defmodule DBConnection.Holder do
   @time_unit 1000
 
   Record.defrecord(:conn, [:connection, :module, :state, :lock, :ts, deadline: nil, status: :ok])
-  Record.defrecord(:pool_ref, [:pool, :reference, :deadline, :holder, :lock])
+  Record.defrecord(:pool_ref, [:pool, :reference, :deadline, :holder, :lock, :label])
 
   @type t :: :ets.tid()
   @type checkin_time :: non_neg_integer() | nil
@@ -57,7 +57,7 @@ defmodule DBConnection.Holder do
     now = System.monotonic_time(@time_unit)
     timeout = abs_timeout(now, opts)
 
-    case checkout(pool, callers, queue?, now, timeout) do
+    case checkout(pool, callers, queue?, now, timeout, opts) do
       {:ok, _, _, _, _} = ok ->
         ok
 
@@ -131,7 +131,8 @@ defmodule DBConnection.Holder do
   end
 
   defp handle_or_cleanup(type, pool_ref, fun, args, opts) do
-    pool_ref(holder: holder, lock: lock) = pool_ref
+    pool_ref(holder: holder, lock: lock, label: label) = pool_ref
+    opts = if label, do: Keyword.put_new(opts, :label, label), else: opts
 
     try do
       :ets.lookup(holder, :conn)
@@ -171,7 +172,7 @@ defmodule DBConnection.Holder do
   end
 
   defp maybe_prefix_label(msg, opts, separator \\ "") do
-    if opts[:label], do: "#{inspect(opts[:label])} " <> separator <> msg, else: msg
+    if opts[:label], do: "#{inspect(opts[:label])} " <> separator <> msg, else: IO.inspect(msg, label: "undecorated")
   end
 
   ## Pool state helpers API (invoked by callers)
@@ -214,9 +215,9 @@ defmodule DBConnection.Holder do
     :ok
   end
 
-  @spec handle_checkout(t, {pid, reference}, reference, checkin_time) :: boolean
-  def handle_checkout(holder, {pid, mref}, ref, checkin_time) do
-    :ets.give_away(holder, pid, {mref, ref, checkin_time})
+  @spec handle_checkout(t, {pid, reference}, reference, checkin_time, any) :: boolean
+  def handle_checkout(holder, {pid, mref}, ref, checkin_time, label \\ nil) do
+    :ets.give_away(holder, pid, {mref, ref, checkin_time, label})
   rescue
     ArgumentError ->
       if Process.alive?(pid) or :ets.info(holder, :owner) != self() do
@@ -287,10 +288,10 @@ defmodule DBConnection.Holder do
 
   ## Private
 
-  defp checkout(pool, callers, queue?, start, timeout) do
+  defp checkout(pool, callers, queue?, start, timeout, opts) do
     case GenServer.whereis(pool) do
       pid when node(pid) == node() ->
-        checkout_call(pid, callers, queue?, start, timeout)
+        checkout_call(pid, callers, queue?, start, timeout, opts)
 
       pid when node(pid) != node() ->
         {:exit, {:badnode, node(pid)}}
@@ -303,18 +304,44 @@ defmodule DBConnection.Holder do
     end
   end
 
-  defp checkout_call(pid, callers, queue?, start, timeout) do
+  defp checkout_call(pid, callers, queue?, start, timeout, opts) do
     lock = Process.monitor(pid)
     send(pid, {:db_connection, {self(), lock}, {:checkout, callers, start, queue?}})
 
     receive do
+      {:"ETS-TRANSFER", holder, pool, {^lock, ref, checkin_time, transfer_label}} ->
+        Process.demonitor(lock, [:flush])
+        {deadline, ops} = start_deadline(timeout, pool, ref, holder, start)
+        :ets.update_element(holder, :conn, [{conn(:lock) + 1, lock} | ops])
+
+        label = transfer_label || opts[:label]
+
+        pool_ref =
+          pool_ref(
+            pool: pool,
+            reference: ref,
+            deadline: deadline,
+            holder: holder,
+            lock: lock,
+            label: label
+          )
+
+        checkout_result(holder, pool_ref, checkin_time)
+
       {:"ETS-TRANSFER", holder, pool, {^lock, ref, checkin_time}} ->
         Process.demonitor(lock, [:flush])
         {deadline, ops} = start_deadline(timeout, pool, ref, holder, start)
         :ets.update_element(holder, :conn, [{conn(:lock) + 1, lock} | ops])
 
         pool_ref =
-          pool_ref(pool: pool, reference: ref, deadline: deadline, holder: holder, lock: lock)
+          pool_ref(
+            pool: pool,
+            reference: ref,
+            deadline: deadline,
+            holder: holder,
+            lock: lock,
+            label: opts[:label]
+          )
 
         checkout_result(holder, pool_ref, checkin_time)
 

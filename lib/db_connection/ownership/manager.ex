@@ -110,6 +110,7 @@ defmodule DBConnection.Ownership.Manager do
        log: log,
        label: pool_opts[:label]
      }}
+     |> IO.inspect(label: "ret val")
   end
 
   @impl true
@@ -252,7 +253,10 @@ defmodule DBConnection.Ownership.Manager do
   end
 
   defp proxy_checkout(state, caller, opts) do
-    %{pool: pool, checkouts: checkouts, owners: owners, ets: ets, log: log, mode: mode} = state
+    %{pool: pool, checkouts: checkouts, owners: owners, ets: ets, log: log, mode: mode, label: label} =
+      state
+
+    opts = if label, do: Keyword.put(opts, :label, label), else: opts
 
     {:ok, proxy} =
       DynamicSupervisor.start_child(
