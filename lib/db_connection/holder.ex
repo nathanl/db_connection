@@ -172,7 +172,7 @@ defmodule DBConnection.Holder do
   end
 
   defp maybe_prefix_label(msg, opts, separator \\ "") do
-    if opts[:label], do: "#{inspect(opts[:label])} " <> separator <> msg, else: IO.inspect(msg, label: "undecorated")
+    if opts[:label], do: "#{inspect(opts[:label])} " <> separator <> msg, else: msg
   end
 
   ## Pool state helpers API (invoked by callers)

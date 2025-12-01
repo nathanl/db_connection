@@ -110,7 +110,6 @@ defmodule DBConnection.Ownership.Manager do
        log: log,
        label: pool_opts[:label]
      }}
-     |> IO.inspect(label: "ret val")
   end
 
   @impl true
