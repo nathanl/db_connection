@@ -214,7 +214,7 @@ defmodule DBConnection.Holder do
     :ok
   end
 
-  @spec handle_checkout(t, {pid, reference}, reference, checkin_time, any) :: boolean
+  @spec handle_checkout(t, {pid, reference}, reference, checkin_time, label :: any) :: boolean
   def handle_checkout(holder, {pid, mref}, ref, checkin_time, label \\ nil) do
     :ets.give_away(holder, pid, {mref, ref, checkin_time, label})
   rescue
