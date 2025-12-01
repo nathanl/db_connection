@@ -97,6 +97,11 @@ defmodule DBConnection.Ownership.Manager do
     log = Keyword.get(pool_opts, :ownership_log, nil)
     mode = Keyword.get(pool_opts, :ownership_mode, :auto)
     checkout_opts = Keyword.take(pool_opts, [:ownership_timeout, :queue_target, :queue_interval])
+    label = pool_opts[:label]
+
+    if label do
+      Process.set_label({__MODULE__, label})
+    end
 
     {:ok,
      %{
@@ -108,7 +113,7 @@ defmodule DBConnection.Ownership.Manager do
        mode_ref: nil,
        ets: ets,
        log: log,
-       label: pool_opts[:label]
+       label: label
      }}
   end
 
