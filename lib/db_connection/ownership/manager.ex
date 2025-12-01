@@ -112,8 +112,7 @@ defmodule DBConnection.Ownership.Manager do
        mode: mode,
        mode_ref: nil,
        ets: ets,
-       log: log,
-       label: label
+       log: log
      }}
   end
 
@@ -229,7 +228,7 @@ defmodule DBConnection.Ownership.Manager do
         {:noreply, state}
 
       :not_found when mode == :manual ->
-        not_found(from, mode, state.label)
+        not_found(from, mode, get_label())
         {:noreply, state}
 
       :not_found ->
@@ -257,9 +256,9 @@ defmodule DBConnection.Ownership.Manager do
   end
 
   defp proxy_checkout(state, caller, opts) do
-    %{pool: pool, checkouts: checkouts, owners: owners, ets: ets, log: log, mode: mode, label: label} =
-      state
+    %{pool: pool, checkouts: checkouts, owners: owners, ets: ets, log: log, mode: mode} = state
 
+    label = get_label()
     opts = if label, do: Keyword.put(opts, :label, label), else: opts
 
     {:ok, proxy} =
@@ -412,6 +411,13 @@ defmodule DBConnection.Ownership.Manager do
 
   defp find_caller([caller | _], _checkouts, _mode) do
     caller
+  end
+
+  defp get_label do
+    case Util.get_label(self()) do
+      {__MODULE__, label} -> label
+      _ -> nil
+    end
   end
 
   defp not_found({pid, _} = from, mode, label) do

@@ -39,7 +39,7 @@ defmodule DBConnection.Util do
   end
 
   # Get a process label if `:proc_lib.get_label/1` is available.
-  defp get_label(pid) do
+  def get_label(pid) do
     if function_exported?(:proc_lib, :get_label, 1) do
       # Avoid a compiler warning if the function isn't
       # defined in your version of Erlang/OTP
