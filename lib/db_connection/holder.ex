@@ -314,8 +314,6 @@ defmodule DBConnection.Holder do
         {deadline, ops} = start_deadline(timeout, pool, ref, holder, start)
         :ets.update_element(holder, :conn, [{conn(:lock) + 1, lock} | ops])
 
-        label = transfer_label || opts[:label]
-
         pool_ref =
           pool_ref(
             pool: pool,
@@ -323,24 +321,7 @@ defmodule DBConnection.Holder do
             deadline: deadline,
             holder: holder,
             lock: lock,
-            label: label
-          )
-
-        checkout_result(holder, pool_ref, checkin_time)
-
-      {:"ETS-TRANSFER", holder, pool, {^lock, ref, checkin_time}} ->
-        Process.demonitor(lock, [:flush])
-        {deadline, ops} = start_deadline(timeout, pool, ref, holder, start)
-        :ets.update_element(holder, :conn, [{conn(:lock) + 1, lock} | ops])
-
-        pool_ref =
-          pool_ref(
-            pool: pool,
-            reference: ref,
-            deadline: deadline,
-            holder: holder,
-            lock: lock,
-            label: opts[:label]
+            label: transfer_label
           )
 
         checkout_result(holder, pool_ref, checkin_time)

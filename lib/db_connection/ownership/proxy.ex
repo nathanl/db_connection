@@ -193,8 +193,8 @@ defmodule DBConnection.Ownership.Proxy do
     {:reply, connection_metrics, state}
   end
 
-  defp checkout({pid, ref} = from, %{holder: holder, pool_ref: pool_ref} = state) do
-    label = if pool_ref, do: elem(pool_ref, 6), else: nil
+  defp checkout({pid, ref} = from, %{holder: holder, pool_opts: pool_opts} = state) do
+    label = pool_opts[:label]
 
     if Holder.handle_checkout(holder, from, ref, nil, label) do
       {:noreply, %{state | client: {pid, ref, pruned_stacktrace(pid)}}}
